@@ -2,27 +2,112 @@
 options:
   logging: CLOUD_LOGGING_ONLY
 
+substitutions:
+  _REGION: europe-west1
+  _SERVICE: aufgabe1-frontend
+  _AR_REPO: cloud-run
+  _IMAGE: frontend-web
+
 steps:
-  # Flutter SDK (stable) in einem Container nutzen
+  # 1) Flutter Web build
   - name: "ghcr.io/cirruslabs/flutter:stable"
+    id: "Build Flutter Web"
+    entrypoint: "bash"
+    args:
+      - "-c"
+      - |
+        set -euo pipefail
+
+        cd frontend
+
+        # Backup deiner Repo-Dateien (flutter create kann die sonst überschreiben)
+        mkdir -p /tmp/frontend_backup
+        cp -f pubspec.yaml /tmp/frontend_backup/pubspec.yaml
+        cp -f analysis_options.yaml /tmp/frontend_backup/analysis_options.yaml || true
+        mkdir -p /tmp/frontend_backup/lib
+        cp -f lib/main.dart /tmp/frontend_backup/lib/main.dart || true
+
+        # Web-Scaffold erzeugen, falls web/ nicht existiert
+        if [ ! -d "web" ]; then
+          flutter create . --platforms=web
+          # Restore deiner Dateien
+          cp -f /tmp/frontend_backup/pubspec.yaml pubspec.yaml
+          cp -f /tmp/frontend_backup/analysis_options.yaml analysis_options.yaml || true
+          mkdir -p lib
+          cp -f /tmp/frontend_backup/lib/main.dart lib/main.dart || true
+        fi
+
+        flutter --version
+        flutter pub get
+        flutter analyze
+        flutter test || true
+        flutter build web --release
+
+        # Build-Output in ein Docker-Build-Verzeichnis kopieren
+        rm -rf /workspace/webdist
+        mkdir -p /workspace/webdist
+        cp -r build/web/* /workspace/webdist/
+
+  # 2) Dockerfile für statische Auslieferung (Cloud Run kompatibel, Port 8080)
+  - name: "gcr.io/cloud-builders/bash"
+    id: "Write Dockerfile"
     entrypoint: "bash"
     args:
       - "-c"
       - |
         set -e
-        echo "Repo Inhalt:"
-        ls -la
+        cat > /workspace/Dockerfile.web <<'EOF'
+        FROM nginxinc/nginx-unprivileged:alpine
+        COPY webdist/ /usr/share/nginx/html
+        EXPOSE 8080
+        EOF
 
-        echo "Wechsle in frontend/"
-        cd frontend
-        ls -la
+  # 3) Artifact Registry Repo sicherstellen (idempotent)
+  - name: "gcr.io/cloud-builders/gcloud"
+    id: "Ensure Artifact Registry Repo"
+    entrypoint: "bash"
+    args:
+      - "-c"
+      - |
+        set -e
+        gcloud artifacts repositories describe ${_AR_REPO} --location=${_REGION} >/dev/null 2>&1 || \
+        gcloud artifacts repositories create ${_AR_REPO} \
+          --repository-format=docker \
+          --location=${_REGION} \
+          --description="Docker repo for Cloud Run"
 
-        flutter --version
-        flutter pub get
-        flutter analyze
+  # 4) Container bauen & pushen
+  - name: "gcr.io/cloud-builders/docker"
+    id: "Build image"
+    args:
+      - "build"
+      - "-f"
+      - "Dockerfile.web"
+      - "-t"
+      - "${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_IMAGE}:$COMMIT_SHA"
+      - "."
 
-        # Tests nur, wenn vorhanden
-        flutter test || true
+  - name: "gcr.io/cloud-builders/docker"
+    id: "Push image"
+    args:
+      - "push"
+      - "${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_IMAGE}:$COMMIT_SHA"
 
-        # Web build (falls ihr Web braucht)
-        flutter build web --release
+  # 5) Deploy nach Cloud Run (gibt dir die URL)
+  - name: "gcr.io/cloud-builders/gcloud"
+    id: "Deploy to Cloud Run"
+    args:
+      - "run"
+      - "deploy"
+      - "${_SERVICE}"
+      - "--image"
+      - "${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_IMAGE}:$COMMIT_SHA"
+      - "--region"
+      - "${_REGION}"
+      - "--platform"
+      - "managed"
+      - "--allow-unauthenticated"
+      - "--quiet"
+
+images:
+  - "${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_IMAGE}:$COMMIT_SHA"
