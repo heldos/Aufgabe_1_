@@ -8,6 +8,20 @@ steps:
     args:
       - "-c"
       - |
-        npm ci
+        set -e
+        ls -la
+        echo "---- Suche package.json ----"
+        find . -maxdepth 3 -name package.json -print
+
+        # HIER Ordner eintragen, wo package.json liegt:
+        cd app
+
+        # wenn KEIN package-lock.json vorhanden ist, fallback auf npm install
+        if [ -f package-lock.json ]; then
+          npm ci
+        else
+          npm install
+        fi
+
         npm test --if-present
         npm run build --if-present
