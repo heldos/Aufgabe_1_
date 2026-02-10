@@ -18,10 +18,7 @@ RUN go build -o server
 FROM alpine:3.20
 WORKDIR /app
 
-# backend binary
 COPY --from=be /be/server /app/server
-
-# frontend static files
 COPY --from=fe /fe/dist /app/public
 
 EXPOSE 8080
