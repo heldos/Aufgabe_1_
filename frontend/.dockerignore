@@ -1,0 +1,6 @@
+.git
+.dart_tool
+*.iml
+.packages
+build
+!build/web
