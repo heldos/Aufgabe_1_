@@ -1,39 +1,28 @@
-# ---------- Build stage ----------
-FROM golang:1.22-alpine AS build
+# ---------- Build Stage ----------
+FROM golang:1.22-alpine AS builder
 
-# Tools
-RUN apk add --no-cache ca-certificates git curl
-
-# Arbeitsverzeichnis
-WORKDIR /app
-
-# Go-Module zuerst kopieren (Cache!)
-COPY backend/go.mod backend/go.sum ./backend/
-
-# Abhängigkeiten laden
 WORKDIR /app/backend
+
+# Go dependencies
+COPY backend/go.mod backend/go.sum ./
 RUN go mod download
 
-# Restlichen Code kopieren
-WORKDIR /app
-COPY backend ./backend
+# Source
+COPY backend .
 
-# Build (WICHTIG: aus backend heraus!)
-WORKDIR /app/backend
+# Build binary
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
-    go build -o /out/server ./cmd/server
+    go build -o server ./cmd/server
 
-# ---------- Runtime stage ----------
+# ---------- Runtime Stage ----------
 FROM gcr.io/distroless/base-debian12
 
-WORKDIR /
+WORKDIR /app
 
-# Binary kopieren
-COPY --from=build /out/server /server
+COPY --from=builder /app/backend/server /app/server
 
-# Cloud Run nutzt PORT
 ENV PORT=8080
 EXPOSE 8080
 
 USER nonroot:nonroot
-ENTRYPOINT ["/server"]
+CMD ["/app/server"]
