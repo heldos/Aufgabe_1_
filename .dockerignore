@@ -1,0 +1,13 @@
+# VCS
+.git
+
+# Flutter / Dart (keep source, ignore build/cache)
+frontend/.dart_tool
+frontend/build
+
+# Node
+**/node_modules
+
+# Go build outputs
+**/*.exe
+**/*.out

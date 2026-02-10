@@ -104,3 +104,16 @@ You can test:
 
 Instructions are in `loadtest/README.md`.
 
+## Deploy on Google Cloud Run (Console)
+
+This repo contains a Go **gRPC** backend.
+
+**Cloud Run settings**
+- Source: GitHub repository
+- Build type: Dockerfile
+- Dockerfile path: `Dockerfile` (repo root)
+- Container port: `8080`
+
+The server listens on `$PORT` (defaults to 8080), which matches Cloud Run.
+
+Note: The public Cloud Run URL serves **gRPC**, not an HTML website. Use a gRPC client (or add an HTTP gateway) to call it.
