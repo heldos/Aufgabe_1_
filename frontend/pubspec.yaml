@@ -1,20 +1,22 @@
-name: temp_converter_frontend
-description: Temperature converter web app calling the Go backend API.
-publish_to: 'none'
-version: 1.0.0+1
+name: tempconv
+description: TempConv Flutter frontend (gRPC client).
+publish_to: "none"
+version: 0.1.0
 
 environment:
-  sdk: '>=3.0.0 <4.0.0'
+  sdk: ">=3.3.0 <4.0.0"
 
 dependencies:
   flutter:
     sdk: flutter
-  http: ^1.1.0
+  grpc: ^4.0.1
+  protobuf: ^3.1.0
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_lints: ^3.0.0
+  flutter_lints: ^4.0.0
 
 flutter:
   uses-material-design: true
+
