@@ -1,0 +1,24 @@
+syntax = "proto3";
+
+package temperature;
+
+option go_package = "grpc-celsius-kelvin/temperature";
+
+import "google/api/annotations.proto";
+
+service TemperatureService {
+  rpc CelsiusToKelvin (CelsiusRequest) returns (KelvinResponse) {
+    option (google.api.http) = {
+      post: "/v1/celsius-to-kelvin"
+      body: "*"
+    };
+  }
+}
+
+message CelsiusRequest {
+  double celsius = 1;
+}
+
+message KelvinResponse {
+  double kelvin = 1;
+}

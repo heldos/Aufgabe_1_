@@ -1,28 +1,28 @@
-# ---------- Build Stage ----------
-FROM golang:1.22-alpine AS builder
+# --- build frontend ---
+FROM node:20-alpine AS fe
+WORKDIR /fe
+COPY frontend/package.json frontend/package-lock.json* ./
+RUN npm install
+COPY frontend/ ./
+RUN npm run build
 
-WORKDIR /app/backend
-
-# Go dependencies
-COPY backend/go.mod backend/go.sum ./
+# --- build backend ---
+FROM golang:1.22-alpine AS be
+WORKDIR /be
+COPY backend/go.mod backend/go.sum* ./
 RUN go mod download
+COPY backend/ ./
+RUN go build -o server
 
-# Source
-COPY backend .
-
-# Build binary
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
-    go build -o server ./cmd/server
-
-# ---------- Runtime Stage ----------
-FROM gcr.io/distroless/base-debian12
-
+# --- final runtime image ---
+FROM alpine:3.20
 WORKDIR /app
 
-COPY --from=builder /app/backend/server /app/server
+# backend binary
+COPY --from=be /be/server /app/server
 
-ENV PORT=8080
+# frontend static files
+COPY --from=fe /fe/dist /app/public
+
 EXPOSE 8080
-
-USER nonroot:nonroot
 CMD ["/app/server"]
